@@ -35,7 +35,7 @@ train_y = None
 num_epochs = 1000
 batch_size = 8
 
-context = None
+context = ""
 
 def main(args=None):
     process_arguments(args)
@@ -171,38 +171,21 @@ def train_model():
                                                   write_graph=True,
                                                   write_images=True)
 
-
-        # Model architecture.
+        # Some hyperparameters.
         input_length = len(train_x[0])
         num_classes = len(train_y[0])
+
+        # Model architecture.
         model = Sequential()
         model.add(Dense(input_length, input_shape=(input_length,)))
         model.add(Dense(8))
         model.add(Dense(8))
         model.add(Dense(num_classes, activation="softmax"))
 
-        print(model.summary())
-
-        # TODO remove this!
-        #estimator = KerasRegressor(build_fn=model, nb_epoch=100, batch_size=5, verbose=True)
-        #seed = 7
-        #np.random.seed(seed)
-        #kfold = KFold(n_splits=10, random_state=seed)
-        #results = cross_val_score(estimator, train_x, train_y, cv=kfold)
-        #print("Results: %.2f (%.2f) MSE" % (results.mean(), results.std()))
-
-        #exit(0)
-
-
-        # For a mean squared error regression problem
+        # For a mean squared error regression problem.
         model.compile(optimizer='rmsprop', loss='mse')
 
-        # Compiling the model.
-        #loss = 'categorical_crossentropy'
-        #optimizer = keras.optimizers.SGD(lr=0.1, clipnorm=1.)
-        #model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
-
-        print("Train model...")
+        # Training.
         model.fit(train_x, train_y, epochs=num_epochs, batch_size=batch_size, callbacks=[tensorBoard])
 
         # Saving the model.
@@ -233,16 +216,14 @@ def evaluate_model():
 
 
 def evaluate_text(text):
-    bag_of_words = bow(text, words)
+    # Generate the bag of words for the input text.
+    bag_of_words = get_bag_of_words(text, words)
+
+    # Predict using the Neural Net.
     bag_of_words = np.expand_dims(bag_of_words, axis=0)
-    #print(bag_of_words)
-    #print(bag_of_words.shape)
-    #print(bag_of_words.dtype)
-
-    #print(classes)
-    #bag_of_words = np.transpose(bag_of_words)
-
     prediction = model.predict(bag_of_words)[0]
+
+    # Process the results.
     prediction_maximum = get_prediction_maximum(prediction)
     prediction_response, new_context = get_prediction_response(prediction_maximum)
 
@@ -255,30 +236,19 @@ def evaluate_text(text):
     global context
     context = new_context
 
-    #print(model.predict([p]))
-
 
 # return bag of words array: 0 or 1 for each word in the bag that exists in the sentence
-def bow(sentence, words, show_details=False):
-    # tokenize the pattern
-    sentence_words = clean_up_sentence(sentence)
-    # bag of words
-    bag = [0]*len(words)
-    for s in sentence_words:
-        for i,w in enumerate(words):
-            if w == s:
-                bag[i] = 1
-                if show_details:
-                    print ("found in bag: %s" % w)
+def get_bag_of_words(sentence, vocabulary):
+    words = nltk.word_tokenize(sentence)
+    words = [word.lower() for word in words]
+    words = [stemmer.stem(word) for word in words]
+    bag = [0] * len(vocabulary)
+    for word in words:
+        for index, vocable in enumerate(vocabulary):
+            if word == vocable:
+                bag[index] = 1
 
-    return(np.array(bag))
-
-def clean_up_sentence(sentence):
-    # tokenize the pattern
-    sentence_words = nltk.word_tokenize(sentence)
-    # stem each word
-    sentence_words = [stemmer.stem(word.lower()) for word in sentence_words]
-    return sentence_words
+    return np.array(bag)
 
 def prediction_to_string(prediction):
     prediction_map = {}

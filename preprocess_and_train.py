@@ -22,7 +22,7 @@ dataset_name = "intents-en"
 intents = None
 
 # Preprocessing and training.
-preprocess_data_anyway = False
+preprocess_data_anyway = True
 words = None
 classes = None
 documents = None
@@ -133,8 +133,12 @@ def create_training_data(words, classes, documents):
 
         training.append([bag, output_row])
 
+        print_training_data([bag], [output_row])
+        print(doc)
+        print(classes[classes.index(doc[1])])
+
     # shuffle our features and turn into np.array
-    random.shuffle(training)
+    #random.shuffle(training)
     training = np.array(training)
 
     # create train and test lists
@@ -150,7 +154,9 @@ def print_training_data(train_x, train_y):
 
     for i in range(len(train_x)):
         print(str(i) + ":", "".join(str(t) for t in train_x[i]), "->", "".join(str(t) for t in train_y[i]))
-
+        #print(documents[i][0])
+        #print(intents["intents"][i]["patterns"])
+        #print(intents["intents"][i]["responses"])
 
 def train_model():
     model_root = "model"

@@ -1,4 +1,4 @@
-# Conversational Agents
+# Conversational Agents with Keras
 
 Conversational Agents are also known as that bots. Here you will find a simple
 chatbot based on Keras that can answer simple user-requests.

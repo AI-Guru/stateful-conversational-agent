@@ -4,7 +4,9 @@ import json
 import nltk
 from nltk.stem.lancaster import LancasterStemmer
 import random
+import nltk
 import numpy as np
+from gensim.models.keyedvectors import KeyedVectors
 import keras
 from keras.models import load_model
 from keras.preprocessing import sequence
@@ -18,11 +20,15 @@ from sklearn.model_selection import cross_val_score
 
 # Globals.
 data_root_path = "."
-dataset_name = "intents-en"
+dataset_name = "intents-de"
 intents = None
+
+# Word vectors.
+word_vectors_model_filename = "german.model"
 
 # Preprocessing and training.
 preprocess_data_anyway = True
+ignored_words = None
 words = None
 classes = None
 documents = None
@@ -39,18 +45,138 @@ context = ""
 
 def main(args=None):
     process_arguments(args)
+    load_word_vectors()
     preprocess_data()
-    train_model()
-    evaluate_model()
+    #train_model()
+    #evaluate_model()
 
 def process_arguments(args):
     print("Implement!")
+
+def load_word_vectors():
+    word_vectors_model_root = "embeddings"
+    word_vectors_model_path = os.path.join(word_vectors_model_root, word_vectors_model_filename)
+    print("Loading word vectors from",  word_vectors_model_path + "...")
+    word_vectors_model_size = os.path.getsize(word_vectors_model_path) / (1024.0 * 1024.0)
+    print("File size is {0:.2f}MB".format(word_vectors_model_size))
+    print("Be patient! This might take a while...")
+    global word_vectors_model
+    try:
+        print("Attempting do load as vector-format...")
+        word_vectors_model = KeyedVectors.load_word2vec_format(word_vectors_model_path, binary=False)
+        print("Success!")
+    except:
+        print("Failed!")
+        try:
+            print("Attempting do load as binary-format...")
+            word_vectors_model = KeyedVectors.load_word2vec_format(word_vectors_model_path, binary=True)
+        except:
+            print("Failed!")
+            exit(0)
+
+    print("Success!")
 
 def preprocess_data():
     preprocessed_data_root = "preprocessed"
     if not os.path.exists(preprocessed_data_root):
         os.makedirs(preprocessed_data_root)
-    preprocessed_data_path = os.path.join(data_root_path, preprocessed_data_root, dataset_name + ".p")
+    preprocessed_data_path = os.path.join(data_root_path, preprocessed_data_root, dataset_name + "-word_embeddings.p")
+
+    # Load the data from JSON-file.
+    global intents
+    dataset_path = os.path.join(data_root_path, dataset_name + ".json")
+    with open(dataset_path) as json_data:
+        intents = json.load(json_data)
+
+    global words, classes, documents, train_x, train_y
+    if os.path.exists(preprocessed_data_path) and preprocess_data_anyway == False:
+        print("Preprocessed file already exists. Loading data...")
+        #words, classes, documents, train_x, train_y = pickle.load(open(preprocessed_data_path, "rb" ))
+    else:
+        print("Preparing training data...")
+        with open(dataset_path) as json_data:
+
+            intents = json.load(json_data)
+            process_intents(intents)
+
+def process_intents(intents):
+
+    class_names = []
+    for intent in intents["intents"]:
+        tag = intent["tag"]
+        class_names.append(tag)
+    class_names = sorted(list(set(class_names)))
+    print(class_names)
+
+    global ignored_words
+    ignored_words = []
+
+    train_x = []
+    train_y = []
+    # TODO progress bar!
+    for intent in intents["intents"]:
+        tag = intent["tag"]
+        one_hot_vector = get_one_hot_vector_from_word(tag, class_names)
+        train_y.append(one_hot_vector)
+
+        for pattern in intent["patterns"]:
+            tokens = get_tokens_from_text(pattern)
+            word_vectors = get_word_vectors_from(pattern)
+            train_x.append(word_vectors)
+            #print(word_vectors)
+
+    print("Writing preprocessed file...")
+    preprocessed_data_root = "preprocessed"
+    preprocessed_data_path = os.path.join(data_root_path, preprocessed_data_root, dataset_name + "_with-word-embedding.p")
+    pickle.dump((class_names, train_x, train_y), open(preprocessed_data_path, "wb"))
+    print("Done.", preprocessed_data_path)
+
+    ignored_words = sorted(list(set(ignored_words)))
+    print("Ignored words:", ignored_words)
+
+def get_one_hot_vector_from_word(word, class_names):
+    one_hot_vector = []
+    for class_name in class_names:
+        if class_name is word:
+            one_hot_vector.append(1)
+        else:
+            one_hot_vector.append(0)
+    return np.array(one_hot_vector)
+
+def get_word_vectors_from(text):
+    tokens = get_tokens_from_text(text)
+    word_vectors = []
+    for token in tokens:
+        try:
+            word_vector = word_vectors_model.wv[token]
+            word_vectors.append(word_vector)
+        except KeyError:
+            ignored_words.append(token)
+    return np.array(word_vectors)
+
+def get_tokens_from_text(text):
+    tokens = nltk.word_tokenize(text)
+    tokens = [token.lower() for token in tokens]
+    return tokens
+
+
+def get_word_vector(word):
+    word_vector = None
+    try:
+        word_vector = word_vectors_model.wv[word]
+    except KeyError:
+        try:
+            print("To lower")
+            word_vector = word_vectors_model.wv[word.lower()]
+        except KeyError:
+            raise Exception("No embedding found for " + word)
+    return word_vector
+
+def OLD_preprocess_data(): # TODO remove
+    preprocessed_data_root = "preprocessed"
+    if not os.path.exists(preprocessed_data_root):
+        os.makedirs(preprocessed_data_root)
+    preprocessed_data_path = os.path.join(data_root_path, preprocessed_data_root, dataset_name + "-word_embeddings.p")
 
     # Load the data from JSON-file.
     global intents
@@ -81,7 +207,7 @@ def preprocess_data():
     print_training_data(train_x, train_y)
 
 
-def process_intents(intents):
+def OLD_process_intents(intents): # TODO remove
     words = []
     classes = []
     documents = []
@@ -133,12 +259,11 @@ def create_training_data(words, classes, documents):
 
         training.append([bag, output_row])
 
-        print_training_data([bag], [output_row])
         print(doc)
         print(classes[classes.index(doc[1])])
 
     # shuffle our features and turn into np.array
-    #random.shuffle(training)
+    random.shuffle(training)
     training = np.array(training)
 
     # create train and test lists
@@ -162,7 +287,7 @@ def train_model():
     model_root = "model"
     if not os.path.exists(model_root):
         os.makedirs(model_root)
-    model_filename = "{}-{}epochs".format(dataset_name, num_epochs)
+    model_filename = "{}-{}epochs-word_embeddings".format(dataset_name, num_epochs)
     model_path = os.path.join(data_root_path, model_root, model_filename)
 
     global model

@@ -26,6 +26,8 @@ def main():
 # that one works.
 def load_word_vectors():
     print("Loading word vectors from",  word_vectors_model_filename + "...")
+    word_vectors_model_size = os.path.getsize(word_vectors_model_filename) / (1024.0 * 1024.0)
+    print("File size is {0:.2f}MB".format(word_vectors_model_size))
     print("Be patient! This might take a while...")
     global word_vectors_model
     try:

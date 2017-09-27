@@ -133,12 +133,11 @@ def create_training_data(words, classes, documents):
 
         training.append([bag, output_row])
 
-        print_training_data([bag], [output_row])
         print(doc)
         print(classes[classes.index(doc[1])])
 
     # shuffle our features and turn into np.array
-    #random.shuffle(training)
+    random.shuffle(training)
     training = np.array(training)
 
     # create train and test lists

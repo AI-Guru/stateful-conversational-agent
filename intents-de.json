@@ -1,0 +1,42 @@
+{"intents": [
+        {"tag": "greeting",
+         "patterns": ["Hi", "Wie gehts?", "Ist jemand da?", "Hallo", "Guten Tag"],
+         "responses": ["Hallo, danke für Ihren Besuch", "Toll dich wiederzusehen", "Hallo, wie kann ich helfen?"],
+         "context_set": ""
+        },
+        {"tag": "goodbye",
+         "patterns": ["Tschüss", "Bis bald", "Auf Wiedersehen!"],
+         "responses": ["Bis später, danke für den Besuch", "Ich wünsche einen schönen Tag", "Tschüss. Kommen Sie bald wieder."]
+        },
+        {"tag": "thanks",
+         "patterns": ["Danke", "Vielen Dank", "Das ist sehr hilfreich"],
+         "responses": ["Jederzeit!", "Ich helfe gerne!", "Es war mir ein Vegnügen!"]
+        },
+        {"tag": "hours",
+         "patterns": ["Wann haben die geöffnet?", "Was sind Ihre Öffnungszeiten?", "Wann machen Sie auf?" ],
+         "responses": ["Wir haben jeden Tag von 9 bis 9 geöffnet.", "Von 9 bis 9."]
+        },
+        {"tag": "mopeds",
+         "patterns": ["Welche Mopeds haben Sie?", "Welche Mopeds sind da?", "Was vermieten Sie?" ],
+         "responses": ["Wir vermieten Yamaha, Piaggio und Vespa Mopeds.", "Wir haben Piaggio, Vespa und Yamaha."]
+        },
+        {"tag": "payments",
+         "patterns": ["Nehmen Sie Kreditkarte?", "Akzeptieren Sie Kreditkarte?", "Nehmen Sie nur Bargeld?" ],
+         "responses": ["Wir akzeptieren VISA, Mastercard and AMEX.", "Wir akzeptieren jede große Kreditkarte."]
+        },
+        {"tag": "opentoday",
+         "patterns": ["Sind sie heute offen?", "Wann haben sie heute offen?", "Wann haben sie heute geöffnet?"],
+         "responses": ["Wir haben jeden Tag von 9 bis 9 geöffnet.", "Von 9 bis 9."]
+        },
+        {"tag": "rental",
+         "patterns": ["Können wir ein Moped mieten?", "Ich möchte gerne ein Moped mieten", "Wie geht das?" ],
+         "responses": ["Möchten Sie gerne heute oder im Laufe der Woche mieten?"],
+         "context_set": "rentalday"
+        },
+        {"tag": "today",
+         "patterns": ["Heute"],
+         "responses": ["Wenn Sie heute mieten wollen, rufen Sie bitte 1-800-MYMOPED an.", "Für Miete am selben Tag bitte 1-800-MYMOPED anrufen."],
+         "context_filter": "rentalday"
+        }
+   ]
+}

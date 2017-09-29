@@ -2,7 +2,6 @@ import os
 import pickle
 import json
 import nltk
-from nltk.stem.lancaster import LancasterStemmer
 import random
 import nltk
 import numpy as np
@@ -24,15 +23,16 @@ dataset_name = "intents-de"
 intents = None
 
 # Word vectors.
-word_vectors_model_filename = "german.model"
+word_vectors_model_filename = "wiki.de.vec"
+word_vectors_length = 300
+word_vectors_model = None
+#word_vectors_model_filename = "german.model"
 
 # Preprocessing and training.
-preprocess_data_anyway = True
+preprocess_data_anyway = False
+overall_words = None
 ignored_words = None
-words = None
-classes = None
-documents = None
-stemmer = LancasterStemmer()
+classe_names = None
 
 model = None
 train_model_anyway = False
@@ -45,30 +45,31 @@ context = ""
 
 def main(args=None):
     process_arguments(args)
-    load_word_vectors()
     preprocess_data()
-    #train_model()
+    train_model()
     #evaluate_model()
 
 def process_arguments(args):
     print("Implement!")
 
-def load_word_vectors():
+def load_word_vectors_lazily():
+    global word_vectors_model
+    if word_vectors_model != None:
+        return
     word_vectors_model_root = "embeddings"
     word_vectors_model_path = os.path.join(word_vectors_model_root, word_vectors_model_filename)
     print("Loading word vectors from",  word_vectors_model_path + "...")
     word_vectors_model_size = os.path.getsize(word_vectors_model_path) / (1024.0 * 1024.0)
     print("File size is {0:.2f}MB".format(word_vectors_model_size))
     print("Be patient! This might take a while...")
-    global word_vectors_model
     try:
-        print("Attempting do load as vector-format...")
+        print("Attempting to load as vector-format...")
         word_vectors_model = KeyedVectors.load_word2vec_format(word_vectors_model_path, binary=False)
         print("Success!")
     except:
         print("Failed!")
         try:
-            print("Attempting do load as binary-format...")
+            print("Attempting to load as binary-format...")
             word_vectors_model = KeyedVectors.load_word2vec_format(word_vectors_model_path, binary=True)
         except:
             print("Failed!")
@@ -91,48 +92,57 @@ def preprocess_data():
     global words, classes, documents, train_x, train_y
     if os.path.exists(preprocessed_data_path) and preprocess_data_anyway == False:
         print("Preprocessed file already exists. Loading data...")
+        raise Exception("Implement!")
         #words, classes, documents, train_x, train_y = pickle.load(open(preprocessed_data_path, "rb" ))
     else:
         print("Preparing training data...")
+        load_word_vectors_lazily()
+
         with open(dataset_path) as json_data:
 
             intents = json.load(json_data)
             process_intents(intents)
 
+            print("Overall words:", len(overall_words), overall_words)
+            print("Ignored words:", len(ignored_words), ignored_words)
+
+            print("Writing preprocessed file...")
+            pickle.dump((class_names, train_x, train_y), open(preprocessed_data_path, "wb"))
+            print("Done.", preprocessed_data_path)
+
 def process_intents(intents):
 
+    global class_names
     class_names = []
     for intent in intents["intents"]:
         tag = intent["tag"]
         class_names.append(tag)
     class_names = sorted(list(set(class_names)))
-    print(class_names)
+    print("Class names: ", class_names)
 
+    global overall_words
+    overall_words = []
     global ignored_words
     ignored_words = []
-
+    global train_x
     train_x = []
+    global train_y
     train_y = []
     # TODO progress bar!
     for intent in intents["intents"]:
         tag = intent["tag"]
         one_hot_vector = get_one_hot_vector_from_word(tag, class_names)
-        train_y.append(one_hot_vector)
 
         for pattern in intent["patterns"]:
             tokens = get_tokens_from_text(pattern)
-            word_vectors = get_word_vectors_from(pattern)
+            word_vectors, ignored = get_word_vectors_from_text(pattern)
+            overall_words.extend(tokens)
+            ignored_words.extend(ignored)
             train_x.append(word_vectors)
-            #print(word_vectors)
+            train_y.append(one_hot_vector)
 
-    print("Writing preprocessed file...")
-    preprocessed_data_root = "preprocessed"
-    preprocessed_data_path = os.path.join(data_root_path, preprocessed_data_root, dataset_name + "_with-word-embedding.p")
-    pickle.dump((class_names, train_x, train_y), open(preprocessed_data_path, "wb"))
-    print("Done.", preprocessed_data_path)
-
+    overall_words = sorted(list(set(overall_words)))
     ignored_words = sorted(list(set(ignored_words)))
-    print("Ignored words:", ignored_words)
 
 def get_one_hot_vector_from_word(word, class_names):
     one_hot_vector = []
@@ -143,33 +153,35 @@ def get_one_hot_vector_from_word(word, class_names):
             one_hot_vector.append(0)
     return np.array(one_hot_vector)
 
-def get_word_vectors_from(text):
+def get_word_vectors_from_text(text):
     tokens = get_tokens_from_text(text)
     word_vectors = []
+    ignored = []
     for token in tokens:
         try:
-            word_vector = word_vectors_model.wv[token]
+            word_vector = get_word_vector(token)
             word_vectors.append(word_vector)
         except KeyError:
-            ignored_words.append(token)
-    return np.array(word_vectors)
+            ignored.append(token)
+    return np.array(word_vectors), ignored
 
-def get_tokens_from_text(text):
+def get_tokens_from_text(text, to_lower=False):
     tokens = nltk.word_tokenize(text)
-    tokens = [token.lower() for token in tokens]
+    if to_lower == True:
+        tokens = [token.lower() for token in tokens]
     return tokens
-
 
 def get_word_vector(word):
     word_vector = None
     try:
+        # Try the original word.
         word_vector = word_vectors_model.wv[word]
     except KeyError:
+        # Maybe there is a vector for the lower-case word.
         try:
-            print("To lower")
             word_vector = word_vectors_model.wv[word.lower()]
-        except KeyError:
-            raise Exception("No embedding found for " + word)
+        except KeyError as key_error:
+            raise key_error
     return word_vector
 
 def OLD_preprocess_data(): # TODO remove
@@ -234,7 +246,7 @@ def OLD_process_intents(intents): # TODO remove
 
     return words, classes, documents
 
-def create_training_data(words, classes, documents):
+def OLD_create_training_data(words, classes, documents): # TODO remove
     # create our training data
     training = []
     output = []
@@ -284,6 +296,9 @@ def print_training_data(train_x, train_y):
         #print(intents["intents"][i]["responses"])
 
 def train_model():
+    if len(train_x) != len(train_y):
+        raise Exception("Training data inconsistent!")
+
     model_root = "model"
     if not os.path.exists(model_root):
         os.makedirs(model_root)

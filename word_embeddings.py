@@ -31,13 +31,13 @@ def load_word_vectors():
     print("Be patient! This might take a while...")
     global word_vectors_model
     try:
-        print("Attempting do load as vector-format...")
+        print("Attempting to load as vector-format...")
         word_vectors_model = KeyedVectors.load_word2vec_format(word_vectors_model_filename, binary=False)
         print("Success!")
     except:
         print("Failed!")
         try:
-            print("Attempting do load as binary-format...")
+            print("Attempting to load as binary-format...")
             word_vectors_model = KeyedVectors.load_word2vec_format(word_vectors_model_filename, binary=True)
         except:
             print("Failed!")
@@ -62,17 +62,20 @@ def test_word_vectors():
     print("Similarity:", word_vectors_model.similarity("Bundeskanzler", "Bundeskanzlerin"))
     positive = ["Frau", "Bundeskanzler"]
     negative = ["Bundeskanzlerin"]
-    print("Most similar:", word_vectors_model.most_similar(positive=positive, negative=negative, topn=1))
-    print("Most similar cosmul:", word_vectors_model.most_similar_cosmul(positive=positive, negative=negative, topn=1))
+    print("Most similar:", word_vectors_model.most_similar(positive=positive, negative=negative, topn=1)[0])
+    print("Most similar cosmul:", word_vectors_model.most_similar_cosmul(positive=positive, negative=negative, topn=1)[0])
 
     # Finding the word that does not match.
     print("Does not match:", word_vectors_model.doesnt_match("Frühstück Bundeskanzler Mittagessen Abendessen".split()))
 
     # Finding word from a vector.
     your_word_vector = word_vectors_model.wv["Merkel"]
-    print("Word from a vector:", word_vectors_model.most_similar(positive=[your_word_vector], topn=1))
+    print("Word from a vector:", word_vectors_model.most_similar(positive=[your_word_vector], topn=1)[0])
 
-    print("Most similar top-10:", word_vectors_model.most_similar(positive=["Merkel"], topn=10))
+    most_similar_topten = word_vectors_model.most_similar(positive=["Merkel"], topn=10)
+    print("Most similar top-10:")
+    for i, most_similar in enumerate(most_similar_topten):
+        print(str(i + 1) + ":", most_similar)
 
 if __name__ == "__main__":
     main()

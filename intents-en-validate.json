@@ -1,0 +1,9 @@
+{
+  "validate": [
+    "is your shop open today?",
+    "do you take cash?",
+    "what kind of mopeds do you rent?",
+    "Goodbye, see you later",
+    "we want to rent a moped",
+    "today"]
+}

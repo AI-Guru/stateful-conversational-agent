@@ -18,7 +18,7 @@ from sklearn.model_selection import cross_val_score
 
 # Globals.
 data_root_path = "."
-dataset_name = "intents-en"
+dataset_name = "intents-de"
 intents = None
 
 # Preprocessing and training.
@@ -34,6 +34,8 @@ train_x = None
 train_y = None
 num_epochs = 1000
 batch_size = 8
+
+validate_data = None
 
 context = ""
 
@@ -201,22 +203,14 @@ def train_model():
 
 def evaluate_model():
 
-    texts = []
-    texts.append("is your shop open today?")
-    texts.append("do you take cash?")
-    texts.append("what kind of mopeds do you rent?")
-    texts.append("Goodbye, see you later")
-    texts.append("we want to rent a moped")
-    texts.append("today")
+    global intents
+    validate_data_path = os.path.join(data_root_path, dataset_name + "-validate.json")
+    with open(validate_data_path) as json_data:
+        validate_data = json.load(json_data)["validate"]
 
-    text = ""
-    text = "is your shop open today?"
+    print(validate_data)
 
-    if len(texts) == 0:
-        text = input("Please enter something: ")
-        texts.append(text)
-
-    for text in texts:
+    for text in validate_data:
         evaluate_text(text)
 
 

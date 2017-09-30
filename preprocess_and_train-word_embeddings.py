@@ -17,6 +17,14 @@ from keras.wrappers.scikit_learn import KerasRegressor
 from sklearn.model_selection import KFold
 from sklearn.model_selection import cross_val_score
 
+
+class Variant:
+    WORD_VECTORS_SUM = "word-vectors-sum" # Sums up all word vectors.
+    WORD_VECTORS_SEQUENCE = "word-vectors-list" # Generates a list from all word vectors.
+    WORD_VECTORS_SEQUENCE_LSTM = "word-vectors-sequence-lstm" # Generates a list from all word vectors for Seq2One.
+
+variant = Variant.WORD_VECTORS_SUM
+
 # Globals.
 data_root_path = "."
 dataset_name = "intents-de"
@@ -24,12 +32,12 @@ intents = None
 
 # Word vectors.
 word_vectors_model_filename = "wiki.de.vec"
+word_vectors_model_filename = "german.model"
 word_vectors_length = 300
 word_vectors_model = None
-#word_vectors_model_filename = "german.model"
 
 # Preprocessing and training.
-preprocess_data_anyway = False
+preprocess_data_anyway = True
 overall_words = None
 ignored_words = None
 classe_names = None
@@ -41,7 +49,28 @@ train_y = None
 num_epochs = 1000
 batch_size = 8
 
+if preprocess_data_anyway == True:
+    print("WARNING! Data will be preprocessed anyway!")
+if train_model_anyway == True:
+    print("WARNING! Model will be trained anyway!")
+
+# Validation.
+raise Exception("Load this properly from file!")
+validate_data_raw = [
+    "Ist ihr Laden heute offen?"
+    "Nehmen Sie Bargeld?",
+    "Welche Sorten von Mopeds vermieten Sie?",
+    "Tschüss, auf wiedersehen.",
+    "Wir möchten ein Moped mieten.",
+    "Heute."]
+validate_data = None
+
+# For the finite state machine.
 context = ""
+
+# TODOs
+# TODO Shuffle training-data?
+# TODO process test data too
 
 def main(args=None):
     process_arguments(args)
@@ -49,9 +78,12 @@ def main(args=None):
     train_model()
     #evaluate_model()
 
+# TODO remove this?
 def process_arguments(args):
     print("Implement!")
 
+
+# TODO move this down
 def load_word_vectors_lazily():
     global word_vectors_model
     if word_vectors_model != None:
@@ -81,37 +113,44 @@ def preprocess_data():
     preprocessed_data_root = "preprocessed"
     if not os.path.exists(preprocessed_data_root):
         os.makedirs(preprocessed_data_root)
-    preprocessed_data_path = os.path.join(data_root_path, preprocessed_data_root, dataset_name + "-word_embeddings.p")
+    preprocessed_data_filename = "{}-{}.p".format(dataset_name, word_vectors_model_filename)
+    preprocessed_data_path = os.path.join(data_root_path, preprocessed_data_root, preprocessed_data_filename)
+    print("PREPROCESSED DATA PATH:", preprocessed_data_path)
 
-    # Load the data from JSON-file.
-    global intents
-    dataset_path = os.path.join(data_root_path, dataset_name + ".json")
-    with open(dataset_path) as json_data:
-        intents = json.load(json_data)
-
-    global words, classes, documents, train_x, train_y
+    global class_names, train_x, train_y, validate_data
     if os.path.exists(preprocessed_data_path) and preprocess_data_anyway == False:
         print("Preprocessed file already exists. Loading data...")
-        raise Exception("Implement!")
-        #words, classes, documents, train_x, train_y = pickle.load(open(preprocessed_data_path, "rb" ))
+        intents, class_names, train_x, train_y, validate_data = pickle.load(open(preprocessed_data_path, "rb" ))
     else:
         print("Preparing training data...")
         load_word_vectors_lazily()
 
+        # Load the data from JSON-file.
+        global intents
+        dataset_path = os.path.join(data_root_path, dataset_name + ".json")
         with open(dataset_path) as json_data:
-
             intents = json.load(json_data)
-            process_intents(intents)
 
+            process_intents()
+
+            process_validate_data()
+
+            global overall_words
+            global ignored_words
+            overall_words = sorted(list(set(overall_words)))
+            ignored_words = sorted(list(set(ignored_words)))
             print("Overall words:", len(overall_words), overall_words)
             print("Ignored words:", len(ignored_words), ignored_words)
 
             print("Writing preprocessed file...")
-            pickle.dump((class_names, train_x, train_y), open(preprocessed_data_path, "wb"))
+            pickle.dump((intents, class_names, train_x, train_y, validate_data), open(preprocessed_data_path, "wb"))
             print("Done.", preprocessed_data_path)
 
-def process_intents(intents):
+def process_intents():
 
+    print("Processing intents to generate training data...")
+
+    global intents
     global class_names
     class_names = []
     for intent in intents["intents"]:
@@ -141,8 +180,22 @@ def process_intents(intents):
             train_x.append(word_vectors)
             train_y.append(one_hot_vector)
 
-    overall_words = sorted(list(set(overall_words)))
-    ignored_words = sorted(list(set(ignored_words)))
+    print("Done.")
+
+def process_validate_data():
+
+    print("Processing data for validation...")
+
+    global validate_data
+    validate_data = []
+    for validate_item_raw in validate_data_raw:
+        tokens = get_tokens_from_text(validate_item_raw)
+        word_vectors, ignored = get_word_vectors_from_text(validate_item_raw)
+        overall_words.extend(tokens)
+        ignored_words.extend(ignored)
+        validate_data.append(word_vectors)
+
+    print("Done.")
 
 def get_one_hot_vector_from_word(word, class_names):
     one_hot_vector = []
@@ -172,119 +225,56 @@ def get_tokens_from_text(text, to_lower=False):
     return tokens
 
 def get_word_vector(word):
-    word_vector = None
+
+    # Try the original word.
     try:
-        # Try the original word.
-        word_vector = word_vectors_model.wv[word]
+        word_to_use =  word
+        word_vector = word_vectors_model.wv[word_to_use]
+        return word_vector
     except KeyError:
-        # Maybe there is a vector for the lower-case word.
-        try:
-            word_vector = word_vectors_model.wv[word.lower()]
-        except KeyError as key_error:
-            raise key_error
-    return word_vector
+        pass
 
-def OLD_preprocess_data(): # TODO remove
-    preprocessed_data_root = "preprocessed"
-    if not os.path.exists(preprocessed_data_root):
-        os.makedirs(preprocessed_data_root)
-    preprocessed_data_path = os.path.join(data_root_path, preprocessed_data_root, dataset_name + "-word_embeddings.p")
+    # Try the original word with replaced umlauts.
+    try:
+        word_to_use =  replace_special_characters(word)
+        word_vector = word_vectors_model.wv[word_to_use]
+        return word_vector
+    except KeyError:
+        pass
 
-    # Load the data from JSON-file.
-    global intents
-    dataset_path = os.path.join(data_root_path, dataset_name + ".json")
-    with open(dataset_path) as json_data:
-        intents = json.load(json_data)
+    # Try the original word in lower case.
+    try:
+        word_to_use =  word.lower()
+        word_vector = word_vectors_model.wv[word_to_use]
+        return word_vector
+    except KeyError:
+        pass
 
-    global words, classes, documents, train_x, train_y
-    if os.path.exists(preprocessed_data_path) and preprocess_data_anyway == False:
-        print("Preprocessed file already exists. Loading data...")
-        words, classes, documents, train_x, train_y = pickle.load(open(preprocessed_data_path, "rb" ))
-    else:
-        print("Preparing training data...")
+    # Try the original word in lower case and replaced umlauts.
+    try:
+        word_to_use =  replace_special_characters(word.lower())
+        word_vector = word_vectors_model.wv[word_to_use]
+        return word_vector
+    except KeyError:
+        pass
 
-        # Extract data from the intents.
-        words, classes, documents = process_intents(intents)
-        print (len(documents), "documents")
-        print (len(classes), "classes", classes)
-        print (len(words), "unique stemmed words", words)
-
-        # Create training-sets.
-        train_x, train_y = create_training_data(words, classes, documents)
-
-        # Save all.
-        pickle.dump((words, classes, documents, train_x, train_y), open(preprocessed_data_path, "wb"))
-        print("Training data saved.")
-
-    print_training_data(train_x, train_y)
+    exception_message = "No word vector found for " + word
+    print(exception_message)
+    raise KeyError(exception_message)
 
 
-def OLD_process_intents(intents): # TODO remove
-    words = []
-    classes = []
-    documents = []
-    ignore_words = ['?']
-    # loop through each sentence in our intents patterns
-    for intent in intents['intents']:
-        for pattern in intent['patterns']:
-            # tokenize each word in the sentence
-            w = nltk.word_tokenize(pattern)
-            # add to our words list
-            words.extend(w)
-            # add to documents in our corpus
-            documents.append((w, intent['tag']))
-            # add to our classes list
-            if intent['tag'] not in classes:
-                classes.append(intent['tag'])
-
-    # stem and lower each word and remove duplicates
-    words = [stemmer.stem(w.lower()) for w in words if w not in ignore_words]
-    words = sorted(list(set(words)))
-
-    # remove duplicates
-    classes = sorted(list(set(classes)))
-
-    return words, classes, documents
-
-def OLD_create_training_data(words, classes, documents): # TODO remove
-    # create our training data
-    training = []
-    output = []
-    # create an empty array for our output
-    output_empty = [0] * len(classes)
-
-    # training set, bag of words for each sentence
-    for doc in documents:
-        # initialize our bag of words
-        bag = []
-        # list of tokenized words for the pattern
-        pattern_words = doc[0]
-        # stem each word
-        pattern_words = [stemmer.stem(word.lower()) for word in pattern_words]
-        # create our bag of words array
-        for w in words:
-            bag.append(1) if w in pattern_words else bag.append(0)
-
-        # output is a '0' for each tag and '1' for current tag
-        output_row = list(output_empty)
-        output_row[classes.index(doc[1])] = 1
-
-        training.append([bag, output_row])
-
-        print(doc)
-        print(classes[classes.index(doc[1])])
-
-    # shuffle our features and turn into np.array
-    random.shuffle(training)
-    training = np.array(training)
-
-    # create train and test lists
-    train_x = list(training[:,0])
-    train_y = list(training[:,1])
-
-    return train_x, train_y
+def replace_special_characters(word):
+    word = word.replace("ä", "ae")
+    word = word.replace("ö", "oe")
+    word = word.replace("ü", "ue")
+    word = word.replace("Ä", "Ae")
+    word = word.replace("Ö", "Oe")
+    word = word.replace("Ü", "Ue")
+    word = word.replace("ß", "ss")
+    return word
 
 
+# TODO Does this still work?
 def print_training_data(train_x, train_y):
     print(len(train_x), "train_x")
     print(len(train_y), "train_y")
@@ -302,8 +292,9 @@ def train_model():
     model_root = "model"
     if not os.path.exists(model_root):
         os.makedirs(model_root)
-    model_filename = "{}-{}epochs-word_embeddings".format(dataset_name, num_epochs)
+    model_filename = "{}-{}-{}-{}epochs".format(dataset_name, word_vectors_model_filename, variant, num_epochs)
     model_path = os.path.join(data_root_path, model_root, model_filename)
+    print("MODEL PATH:", model_path)
 
     global model
     if os.path.exists(model_path) and train_model_anyway == False:
@@ -316,6 +307,14 @@ def train_model():
                                                   histogram_freq=1,
                                                   write_graph=True,
                                                   write_images=True)
+
+        # TODO process training data wrt variant
+
+        # TODO create model wrt variant
+
+        # TODO train
+
+        raise Exception("Implement properly!")
 
         # Some hyperparameters.
         input_length = len(train_x[0])
@@ -340,6 +339,7 @@ def train_model():
 
         print("Model saved.")
 
+# TODO rewrite this
 def evaluate_model():
 
     texts = []

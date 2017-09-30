@@ -18,7 +18,7 @@ from sklearn.model_selection import cross_val_score
 
 # Globals.
 data_root_path = "."
-dataset_name = "intents-de"
+dataset_name = "intents-hi"
 intents = None
 
 # Preprocessing and training.

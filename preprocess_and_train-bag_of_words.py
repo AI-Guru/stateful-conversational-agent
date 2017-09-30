@@ -208,8 +208,6 @@ def evaluate_model():
     with open(validate_data_path) as json_data:
         validate_data = json.load(json_data)["validate"]
 
-    print(validate_data)
-
     for text in validate_data:
         evaluate_text(text)
 
